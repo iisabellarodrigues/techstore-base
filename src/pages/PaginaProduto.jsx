@@ -1,7 +1,12 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 
-export default function PaginaProduto({ produtos, onAdicionar }) {
+export default function PaginaProduto({ produtos, listaEspera, onAdicionar, onRegistrarInteresse }) {
   const { id } = useParams()
+  const [nome, setNome] = useState('')
+  const [email, setEmail] = useState('')
+  const [mensagemAviso, setMensagemAviso] = useState('')
+
   const produto = produtos.find((item) => item.id === id)
 
   if (!produto) {
@@ -16,8 +21,24 @@ export default function PaginaProduto({ produtos, onAdicionar }) {
   }
 
   const relacionados = produtos
-    .filter((item) => item.category === produto.category && item.id !== produto.id)
+    .filter((item) => item.category === produto.category && item.id !== produto.id && item.estoque > 0)
     .slice(0, 4)
+
+  const produtoEsgotado = produto.estoque === 0
+
+  function enviarAviso(evento) {
+    evento.preventDefault()
+
+    if (!nome.trim() || !email.trim()) {
+      setMensagemAviso('Preencha nome e e-mail para receber o aviso.')
+      return
+    }
+
+    onRegistrarInteresse(produto.id, nome.trim(), email.trim())
+    setNome('')
+    setEmail('')
+    setMensagemAviso('Você foi adicionado à lista de espera para esse produto.')
+  }
 
   return (
     <section>
@@ -39,15 +60,43 @@ export default function PaginaProduto({ produtos, onAdicionar }) {
           </p>
           <p className="detalhe-preco">R$ {produto.price.toFixed(2).replace('.', ',')}</p>
           <p className="detalhe-descricao">{produto.description}</p>
-          <p className="detalhe-estoque">{produto.estoque} unidades disponíveis</p>
+          <p className="detalhe-estoque">
+            {produtoEsgotado ? 'Produto esgotado' : `${produto.estoque} unidades disponíveis`}
+          </p>
 
-          <button
-            className="botao botao-grande"
-            onClick={() => onAdicionar(produto)}
-            disabled={produto.estoque === 0}
-          >
-            Adicionar ao carrinho
-          </button>
+          {!produtoEsgotado && (
+            <button
+              className="botao botao-grande"
+              onClick={() => onAdicionar(produto)}
+              disabled={produto.estoque === 0}
+            >
+              Adicionar ao carrinho
+            </button>
+          )}
+
+          {produtoEsgotado && (
+            <form className="cupom" onSubmit={enviarAviso}>
+              <label className="rotulo">Receber aviso quando voltar ao estoque</label>
+              <input
+                type="text"
+                value={nome}
+                onChange={(evento) => setNome(evento.target.value)}
+                placeholder="Seu nome"
+                className="cupom-campo"
+              />
+              <input
+                type="email"
+                value={email}
+                onChange={(evento) => setEmail(evento.target.value)}
+                placeholder="Seu e-mail"
+                className="cupom-campo"
+              />
+              <button type="submit" className="botao botao-grande">
+                Avise-me
+              </button>
+              {mensagemAviso && <p className="mensagem-cupom">{mensagemAviso}</p>}
+            </form>
+          )}
 
           <ul className="detalhe-garantias">
             <li>Troca grátis em até 30 dias</li>
@@ -73,6 +122,21 @@ export default function PaginaProduto({ produtos, onAdicionar }) {
           </article>
         ))}
       </div>
+
+      {produtoEsgotado && listaEspera.length > 0 && (
+        <div className="lista-espera">
+          <h3>Pessoas aguardando esse produto</h3>
+          <ul>
+            {listaEspera
+              .filter((interesse) => interesse.produtoId === produto.id)
+              .map((interesse) => (
+                <li key={interesse.id}>
+                  {interesse.nome} — {interesse.email}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
     </section>
   )
 }

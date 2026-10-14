@@ -9,9 +9,11 @@ import Carrinho from './pages/Carrinho'
 import Estoque from './pages/Estoque'
 import { buscarProdutos } from './services/produtos'
 import { buscarClientes } from './services/clientes'
+import { sanitizarProdutoParaCarrinho } from './utils/carrinho'
 
 export default function App() {
   const [produtos, setProdutos] = useState([])
+  const [listaEspera, setListaEspera] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)
   const [carrinho, setCarrinho] = useState([])
@@ -20,7 +22,19 @@ export default function App() {
 
   useEffect(() => {
     buscarProdutos()
-      .then((dados) => setProdutos(dados))
+      .then((dados) => {
+        const produtosValidos = dados.filter(
+          (produto) =>
+            produto &&
+            produto.price !== null &&
+            produto.price !== undefined &&
+            produto.price !== '' &&
+            Number.isFinite(Number(produto.price)) &&
+            Number(produto.price) > 0
+        )
+
+        setProdutos(produtosValidos)
+      })
       .catch(() => setErro('Não foi possível carregar os produtos.'))
       .finally(() => setCarregando(false))
 
@@ -30,8 +44,28 @@ export default function App() {
     })
   }, [])
 
+  const produtosEmLoja = produtos.filter((produto) => produto.estoque > 0)
+
   function adicionarAoCarrinho(produto) {
-    setCarrinho(carrinho.concat(produto))
+    const produtoValido = sanitizarProdutoParaCarrinho(produto)
+
+    if (!produtoValido) {
+      return
+    }
+
+    setCarrinho((carrinhoAtual) => carrinhoAtual.concat(produtoValido))
+  }
+
+  function registrarInteresse(produtoId, nome, email) {
+    setListaEspera((atual) => [
+      ...atual,
+      {
+        id: Date.now() + Math.random(),
+        produtoId,
+        nome,
+        email,
+      },
+    ])
   }
 
   function removerUmaUnidade(produtoId) {
@@ -63,11 +97,18 @@ export default function App() {
           <Routes>
             <Route
               path="/"
-              element={<Loja produtos={produtos} onAdicionar={adicionarAoCarrinho} />}
+              element={<Loja produtos={produtosEmLoja} onAdicionar={adicionarAoCarrinho} />}
             />
             <Route
               path="/produto/:id"
-              element={<PaginaProduto produtos={produtos} onAdicionar={adicionarAoCarrinho} />}
+              element={
+                <PaginaProduto
+                  produtos={produtos}
+                  listaEspera={listaEspera}
+                  onAdicionar={adicionarAoCarrinho}
+                  onRegistrarInteresse={registrarInteresse}
+                />
+              }
             />
             <Route
               path="/carrinho"
@@ -81,7 +122,10 @@ export default function App() {
                 />
               }
             />
-            <Route path="/estoque" element={<Estoque produtos={produtos} />} />
+            <Route
+              path="/estoque"
+              element={<Estoque produtos={produtos} listaEspera={listaEspera} />}
+            />
           </Routes>
         )}
       </main>
